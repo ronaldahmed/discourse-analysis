@@ -1,0 +1,39 @@
+# Cache files #
+###############
+*.pyc
+*.pyo
+.Rhistory
+.RData
+.Rhistory
+.RData
+# Virtualenv files #
+####################
+bin/*
+lib/*
+include/*
+docs/*
+src/*
+build/*
+share/*
+man/*
+node_modules/*
+local
+.metadata/*
+# OS generated files #
+######################
+.DS_Store?
+.DS_Store
+ehthumbs.db
+Icon?
+Thumbs.db
+.Python
+.RData
+.Rhistory
+*.*~
+*~
+# Project specific files #
+##########################
+datasets/*
+
+# Sass cache
+/**/.sass-cache/
