@@ -6,8 +6,6 @@ import re
 import ipdb
 
 
-
-data_dir = "../datasets/semeval_2010_t1_eng/data"
 #libs_dir = "hdp"
 #sys.path.append(libs_dir)
 from hdp.ugs import *
