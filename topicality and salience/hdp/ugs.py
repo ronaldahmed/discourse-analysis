@@ -11,6 +11,7 @@ available online www.cs.princeton.edu/~chongw/papers/sm-hdp.pdf.
 
 import numpy, scipy;
 import scipy.special;
+import ipdb
 
 # We will be taking log(0) = -Inf, so turn off this warning
 numpy.seterr(divide='ignore')
@@ -79,6 +80,10 @@ class UncollapsedGibbsSampling(object):
         # initialize the word count vectors indexed by document id and table id, i.e., n_{j t \cdot}
         self._n_dt = {};
         
+        ##
+        # initialize vector of topic indexes ordered by p(k), [prob,k_index]
+        self._ord_topics_pk = numpy.zeros((self._K,2))
+
         # we assume all words in a document belong to one table which was assigned to topic 0 
         for d in xrange(self._D):
             # initialize the table information vector indexed by document and records down which table a word belongs to 
@@ -101,7 +106,7 @@ class UncollapsedGibbsSampling(object):
 
     """
     sample the data to train the parameters
-    @param iteration: the number of gibbs sampling iteration
+    @param iteration: the number of gibbs sampling iterations
     @param directory: the directory to save output, default to "../../output/tmp-output"  
     """
     def sample(self, iteration, directory="../../output/"):
@@ -231,7 +236,10 @@ class UncollapsedGibbsSampling(object):
                         #topic_probability = topic_probability/numpy.sum(topic_probability);
                         topic_probability = numpy.exp(log_normalize(topic_probability));
                         cdf = numpy.cumsum(topic_probability);
-                        new_topic = numpy.uint8(numpy.nonzero(cdf >= numpy.random.random())[0][0]);
+                        try:
+                            new_topic = numpy.uint8(numpy.nonzero(cdf >= numpy.random.random())[0][0]);
+                        except:
+                            ipdb.set_trace()
                         
                         # if the table is assigned to a new topic
                         if new_topic != old_topic:
@@ -267,6 +275,14 @@ class UncollapsedGibbsSampling(object):
                 
             if (iter + 1) % self._snapshot_interval == 0:
                 self.export_snapshot(directory, iter + 1);
+
+            ########
+            # order topics by p(k)
+            log_pk = self.by_topic_log_likelihood()
+            temp = zip(log_pk,range(self._K))
+            temp.sort(reverse=True)
+            self._ord_topics_pk = numpy.array(temp)
+            
                 
     """
     @param document_index: the document index to update
@@ -392,7 +408,37 @@ class UncollapsedGibbsSampling(object):
                     log_likelihood += scipy.special.gammaln(self._n_kv[topic_index, word_index] + self._eta) - scipy.special.gammaln(self._eta);
                     
         return log_likelihood
+       
+    """
+    returns array with log_likelihood of each k
+    """
+    def by_topic_log_likelihood(self):
+        log_likelihood = numpy.log(self._gamma) - log_factorial(numpy.sum(self._m_k), self._gamma)
+        log_likelihood = log_likelihood * numpy.ones(self._K)
+        for topic_index in xrange(self._K):
+            log_likelihood[topic_index] += scipy.special.gammaln(self._m_k[topic_index]);
+        log_likelihood += scipy.special.gammaln(self._gamma);
         
+        return log_likelihood
+
+    """
+    return argmax_{k} p(x|t,k)
+    """
+    def assign_topic_word(self,word_index):
+        n_k = numpy.sum(self._n_kd, axis=1);
+        log_p_x =  -numpy.inf * numpy.ones(self._K)
+        max_topic_index = -1
+        for topic_index in xrange(self._K):
+            if self._n_kv[topic_index, word_index] > 0:
+                log_p_x[topic_index]  = scipy.special.gammaln(self._V * self._eta)
+                log_p_x[topic_index] -= scipy.special.gammaln(self._V * self._eta + n_k[topic_index]);
+                log_p_x[topic_index] += scipy.special.gammaln(self._n_kv[topic_index, word_index] + self._eta) - scipy.special.gammaln(self._eta);
+
+        if log_p_x.max()==-numpy.inf:
+            return -1
+        return log_p_x.argmax()
+        
+
     """
     """
     def export_snapshot(self, directory, index):
@@ -411,6 +457,35 @@ class UncollapsedGibbsSampling(object):
             output2.write(" ".join([str(item) for item in self._k_dt[d]]) + "\n");
             
         print "successfully export the snapshot to " + directory + " for iteration " + str(index) + "..."
+
+
+    """
+    Customized print function. Shows top n topics (top m words) ordered by log_p(k)
+    format: | k_idx | log_pk | top m words |
+    """
+    def print_topics(self,gen_vocab, top_words=10,top_topics=15):
+        (K, V) = self._n_kv.shape;
+        assert(V == len(gen_vocab));
+        print("k  | logp    | words")
+        print("------------------------------------------------")
+        t_count=0
+        for i in xrange(self._ord_topics_pk.shape[0]):
+            k = self._ord_topics_pk[i,1]
+            logp = self._ord_topics_pk[i,0]
+
+            count_wid = zip(self._n_kv[k,:],range(V))
+            count_wid.sort(reverse=True)
+            output_str="%3i| %4.2f |\t" % (k,logp)
+            for i in range(top_words):
+                #output_str += "%s(%i), " % (gen_vocab[count_wid[i][1]],count_wid[i][0])
+                output_str += "%s, " % (gen_vocab[count_wid[i][1]])
+            print(output_str)
+            
+            t_count+=1
+            if t_count>=top_topics:
+                break
+
+
 
 """
 some utility functions
@@ -461,35 +536,7 @@ def log_factorial(n, a):
         return 0.;
     return scipy.special.gammaln(n + a) - scipy.special.gammaln(a);
 
-"""
-"""
-def print_topics(n_kv, term_mapping, top_words=10):
-    input = open(term_mapping);
-    vocab = {};
-    i = 0;
-    for line in input:
-        vocab[i] = line.strip();
-        i += 1;
 
-    (K, V) = n_kv.shape;
-    assert(V == len(vocab));
-
-    if top_words >= V:
-        sorted_counts = numpy.zeros((1, K)) - numpy.log(V);
-    else:
-        sorted_counts = numpy.sort(n_kv, axis=1);
-        sorted_counts = sorted_counts[:, -top_words][:, numpy.newaxis];
-    
-    assert(sorted_counts.shape==(K, 1));
-
-    for k in xrange(K):
-        display = (n_kv[[k], :] >= sorted_counts[k, :]);
-        assert(display.shape == (1, V));
-        output_str = str(k) + ": ";
-        for v in xrange(self._V):
-            if display[:, v]:
-                output_str += vocab[v] + "\t";
-        print output_str
 
 """
 run HDP on a synthetic corpus.
