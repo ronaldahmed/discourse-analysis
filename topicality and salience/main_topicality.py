@@ -9,8 +9,8 @@ data_dir = "../datasets/semeval_2010_t1_eng/data"
 
 if __name__=="__main__":
 	print("Reading training data...")
-	n_docs=20
-	gibbs_iterations=100
+	n_docs='all'
+	gibbs_iterations=1000
 	data_file = os.path.join(data_dir,'en.train.txt')
 	
 	docs,vocab = read_conll2010_task1(data_file,n_docs=n_docs)
@@ -128,4 +128,6 @@ if __name__=="__main__":
 	output.write("Y,X1,X2\n")
 	for i in xrange(len(y)):
 		output.write("%i,%.4f,%.4f\n" % (y[i],x[i][0],x[i][1]))
+	
+	ipdb.set_trace()
 
