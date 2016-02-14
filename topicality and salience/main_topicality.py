@@ -13,7 +13,7 @@ if __name__=="__main__":
 	gibbs_iterations=100
 	data_file = os.path.join(data_dir,'en.train.txt')
 	
-	docs,vocab = getdata(data_file,n_docs=n_docs)
+	docs,vocab = read_conll2010_task1(data_file,n_docs=n_docs)
 	
 	# get referents by doc
 	refs_by_doc,ref_by_token = get_referents(docs)
