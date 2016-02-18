@@ -11,7 +11,7 @@ Naho Orita, Eliana Vornov, Naomi Feldman, Hal Daumé III. (2015). Why discourse 
 
 <p>The model parameters (alpha and decay) are tuned running several configurations over the corpus. The tuned parameter values differ from those stated in the paper due to lack of extra data (CHILDES and extra agreement annotation for OntoNotes), manually annotated by the authors.</p>
 
-<p>Files</p>
+Files:
 <ul>
 	<li><b>main_speaker_model.py:</b><br/>
 		Reads the data and run the models described in N. Orita et all (2015).
@@ -34,5 +34,4 @@ Naho Orita, Eliana Vornov, Naomi Feldman, Hal Daumé III. (2015). Why discourse 
 	<li><b>pro_type_ids.pickle</b></br>
 		Automatic agreement annotation (pronoun type) for all referents in the corpus.
 	</li>
-	<li></li>
 </ul>
