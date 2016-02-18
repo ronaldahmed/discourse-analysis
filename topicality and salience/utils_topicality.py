@@ -4,12 +4,178 @@ import matplotlib
 import matplotlib.pyplot as plt
 import re
 import ipdb
+import glob as gb
+import codecs
 
-sys.path.append("../")
-from utils import *
-from hdp.ugs import *
+########################################################################################
+np.seterr(divide='ignore')
 
-numpy.seterr(divide='ignore')
+split_re = re.compile(r'([()|])')
+
+pos_weights = {
+	'NNP':0,
+	'NNPS':0,
+	'NN':5,
+	'NNS':5,
+	'PRP':10,
+	'PRP$':10
+}
+
+########################################################################################
+
+class Event:
+	def __init__(self,_phrase='',_pos='NN',_priority=-np.inf,_fin_phrase=-np.inf):
+		self.phrase = _phrase
+		self.pos = _pos
+		self.priority = _priority
+		self.entity_id = -1
+		self.fin_phrase = _fin_phrase
+		self.pos_lock = False
+		
+
+	def __str__(self):
+		pp = self.priority
+		if pp==-np.inf:
+			pp=-1
+		res = "[ phrase:%s\n  pos: %s\n  priority: %i\n  entity_id: %i]" % (self.phrase,self.pos,pp,self.entity_id)
+		return res
+
+	def __repr__(self):
+		pp = self.priority
+		if pp==-np.inf:
+			pp=-1
+		res = "[ phrase:%s\n  pos: %s\n  priority: %i\n  entity_id: %i]" % (self.phrase,self.pos,pp,self.entity_id)
+		return res
+
+'''
+read corefenrence entities and preprocess
+@param filename: absolute path + filename
+return
+	(documents: [doc| doc=(entity,POS,entity_id)]
+	 vocabulary: list of entities as vocabulary
+	)
+'''
+def read_conll2010_task1(filename,n_docs='all'):
+	documents = []
+	sentence = []
+	vocabulary = set()
+	count_docs = 0
+
+	for line in open(filename):
+		line = line.strip('\n')
+		if line.startswith('#begin'):
+			doc = []
+			sentence=[]
+			event = Event()
+			open_events = [event]
+			continue
+			#all temp files are reset
+		if line.startswith('#end'):
+			#save all temp docs
+			doc = np.array(doc)
+			documents.append(doc)
+			count_docs+=1
+			if n_docs!='all':
+				if count_docs>=n_docs:
+					break
+			continue
+		
+		if line!='':
+			temp1 = line.split('\t')
+			sentence.append(temp1)
+
+		if line=='':
+			# build tree
+			nn = len(sentence)+1
+			dep_graph = [[] for i in xrange(nn)]
+			nodes_depth = np.zeros(nn)
+			root = -1
+			for comp in sentence:
+				u = int(comp[0])
+				v = int(comp[8])
+				dep_graph[u].append(v)
+				dep_graph[v].append(u)
+				if v==0:
+					root=v
+			# assign height to nodes with BFS
+			queue = [root]
+			visited = np.zeros(nn)
+			while len(queue)!=0:
+				curr_node = queue.pop()
+				if visited[curr_node]!=1:
+					visited[curr_node]=1
+					for v in dep_graph[curr_node]:
+						if visited[v]!=1 and nodes_depth[v]<nodes_depth[curr_node]+1:
+							nodes_depth[v]=nodes_depth[curr_node]+1
+							queue.append(v)
+
+			# Extract entities
+			for comp in sentence:
+				event = open_events[-1]
+				n_tok = int(comp[0])
+				token = comp[1]
+				pos = comp[4]
+				synt_head = nodes_depth[n_tok] # corrected height
+				coref_str = comp[-1]
+
+				if pos not in ['NNP','NNPS'] and token!="I": # lowercase any other than proper nouns
+					token = token.lower()
+
+				for i in xrange(len(open_events)):
+					event = open_events[i]
+					# continue building phrase
+					if pos[0]=='N' and pos==event.pos and n_tok==event.fin_phrase+1:
+						if event.phrase!='':
+							event.phrase+=' '
+						event.phrase+=token
+						event.priority = min(event.priority,synt_head)
+						event.fin_phrase+=1
+						open_events[i] = event
+					# update ENTITY
+					elif pos in ['NN','NNS','NNP','NNPS','PRP','PRP$'] and synt_head<event.priority:
+							# conserve ENTITY_ID
+							new_event = Event(token,pos,synt_head,n_tok)
+							new_event.entity_id = event.entity_id
+							open_events[i] = new_event
+
+				if coref_str=='_':
+					continue
+
+				# pos in ['NN','NNS','NNP','NNPS','PRP','PRP$'] and 
+				temp = split_re.split(coref_str)
+				splitted = [a for a in temp if a!='']
+				k=0
+				while(k<len(splitted)):		# | no hace nada
+					if splitted[k]=='(':
+						priority = np.inf
+						if pos in ['NN','NNS','NNP','NNPS','PRP','PRP$']:
+							priority = synt_head
+						event = Event(token,pos,priority,n_tok)	# initialization
+						open_events.append(event)
+					elif splitted[k].isdigit():
+						id = 0
+						id = int(splitted[k])
+						open_events[-1].entity_id = id # si es nuevo asigna, sino chanca el [mismo] id al ultimo activo
+					elif splitted[k]==')':
+						if open_events[-1].pos in ['NN','NNS','NNP','NNPS','PRP','PRP$']:
+							text = open_events[-1].phrase
+							ev_pos = open_events[-1].pos
+							ent_id = open_events[-1].entity_id
+							doc.append(tuple([text,ev_pos,ent_id]) )
+							vocabulary.add(open_events[-1].phrase)	# build vocab
+						open_events.pop()
+					k+=1
+			#END-FOR-ENTITIES
+
+			#reset sentence var
+			sentence = []
+		#END-IF-EMPTY-LINE
+	#END-FOR-FILE
+	documents = np.array(documents)
+	vocabulary = list(vocabulary)
+	return documents,vocabulary
+
+
 
 '''
 @param refs_by_doc: [doc | doc:{"lex":{ref:freq}, "pro":{ref:freq} }]
@@ -50,6 +216,20 @@ def add(_dict,key,val):
 	return
 
 """
+Get orreference chains from a single document
+@param doc: tuple(entity, POS, entity_id)
+"""
+def get_coref_chains(doc):
+	chains = {}
+	for (ent,pos,ent_id) in doc:
+		if ent_id not in chains:
+			chains[ent_id] = set()
+		if (ent,pos) not in chains[ent_id]:
+			chains[ent_id].add((pos_weights[pos],ent))
+	return chains
+
+
+"""
 Extracts referent chains, assigns the referent and separate by lex or pro, + frequency
 return
 	refs_by_doc: [doc | doc:{"lex":{ref:freq}, "pro":{ref:freq} }]
@@ -59,28 +239,16 @@ def get_referents(documents):
 	N = documents.shape[0]
 
 	ref_by_token = {}
-	pos_weights = {
-		'NNP':0,
-		'NNPS':0,
-		'NN':5,
-		'NNS':5,
-		'PRP':10,
-		'PRP$':10
-	}
 	refs_by_doc = []
+	
 	for i in xrange(N):
-		chains = {}
+		# get annotated correference chains
+		chains = get_coref_chains(documents[i])
+
+		# get lexical nouns and pronouns referents
 		lexical_noun_refs = {}
 		pronoun_refs = {}
 
-		# get annotated correference chains
-		for (ent,pos,ent_id) in documents[i]:
-			if ent_id not in chains:
-				chains[ent_id] = set()
-			if (ent,pos) not in chains[ent_id]:
-				chains[ent_id].add((pos_weights[pos],ent))
-		
-		# get lexical nouns and pronouns referents
 		for (ent_id,ref_chain) in chains.items():
 			chain = set(ref_chain)
 			(pos_w,ref) = chain.pop()
