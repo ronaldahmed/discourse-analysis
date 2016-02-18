@@ -11,8 +11,8 @@ data_noun_lexicon_dir = "../datasets/noun_gender_number/"
 
 if __name__=="__main__":
 	n_docs='all'
-	update_pron_types = False
-	update_lexicon = False
+	update_pron_types = False		# True: load agreement annotation for referents
+	update_lexicon = False			# True: load vocabulary intersection between genre_number lexicon and corpus
 
 	GN_counts = []
 	GN_np_vocab = []
@@ -71,16 +71,16 @@ if __name__=="__main__":
 		pro_type_ids = uploadObject('pro_type_ids')
 		pro_type_counts = uploadObject('pro_type_counts')
 
-	"""
-	print("Genre and number annotations")
-	print("----------------------------------------------------------------------------------------------------------")
+	
+	print("Agreement annotations (pronoun type)")
+	print("-"*150)
 	for ii in range(len(pronoun_type_debug)-1):
-		for i in range(len(vocab)):
+		for i in range(20):
 			if pro_type_ids[i]==ii:
 				print("%120s : %15s" % (vocab[i],pronoun_type_debug[pro_type_ids[i]] ) )
 		print("-"*150)
-	"""
-	tune_parameters = False
+	
+	tune_parameters = True		#True: tune alpha and recency decay
 	if not tune_parameters:
 		alpha = 1e-4
 		decay = 100
@@ -155,7 +155,7 @@ if __name__=="__main__":
 		print("-------------------------------------------------------")
 		alphas = [1e-4, 1e-3, 1e-2, 0.1,1,10]
 		decays = [1e-2,0.1, 1, 3, 5, 10,100,1e3]
-		salience_measures = ['rec','freq']
+		salience_measures = ['recency','frequency']
 
 		a_opt, d_opt = 0,0
 		acc = 0

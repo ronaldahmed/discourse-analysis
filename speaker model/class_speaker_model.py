@@ -59,8 +59,8 @@ class SpeakerModel:
 
 	def speech_cost(self,word_id):
 		#return len( self.vocab[word_id] )
-		#return np.log( len(self.vocab[word_id]) )
-		return np.log( len(self.vocab[word_id]) )+1.0
+		return np.log( len(self.vocab[word_id]) )
+		#return np.log( len(self.vocab[word_id]) )+1.0
 
 	'''
 	p(r) : discourse salience of referent r up until now
