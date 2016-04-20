@@ -72,6 +72,7 @@ if __name__=="__main__":
 		pro_type_counts = uploadObject('pro_type_counts')
 
 	
+	# Check agreement information for first 20 phrases in vocabulary	
 	print("Agreement annotations (pronoun type)")
 	print("-"*150)
 	for ii in range(len(pronoun_type_debug)-1):
@@ -80,11 +81,12 @@ if __name__=="__main__":
 				print("%120s : %15s" % (vocab[i],pronoun_type_debug[pro_type_ids[i]] ) )
 		print("-"*150)
 	
-	tune_parameters = True		#True: tune alpha and recency decay
+	tune_parameters = False		#True: tune alpha and recency decay
 	if not tune_parameters:
 		alpha = 1e-4
 		decay = 100
-		salience_measures = ['recency','frequency']
+		#salience_measures = ['recency','frequency','topicality']
+		salience_measures = ['topicality']
 		print("Running models...")
 		print("  alpha: ",alpha)
 		print("  decay: ",decay)

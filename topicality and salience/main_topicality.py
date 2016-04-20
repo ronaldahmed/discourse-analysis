@@ -23,7 +23,7 @@ if __name__=="__main__":
 
 	print("Initializing HDP...")
 	gs = UncollapsedGibbsSampling(50);
-	gs._initialize(formated_docs,gamma=1.0,alpha=1.0,eta=0.01)
+	gs._initialize(formated_docs,referents_vocab,gamma=1.0,alpha=1.0,eta=0.01)
 
 	print("Sampling HDP (training)...")
 	gs.sample(iteration=gibbs_iterations,directory='output/');

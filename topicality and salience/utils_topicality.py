@@ -6,7 +6,7 @@ import re
 import ipdb
 import glob as gb
 import codecs
-
+sys.path.append('../')
 from hdp.ugs import *
 
 ########################################################################################
@@ -89,7 +89,7 @@ def read_conll2010_task1(filename,n_docs='all'):
 		if line=='':
 			# build tree
 			nn = len(sentence)+1
-			dep_graph = [[] for i in xrange(nn)]
+			dep_graph = [[] for i in range(nn)]
 			nodes_depth = np.zeros(nn)
 			root = -1
 			for comp in sentence:
@@ -123,7 +123,7 @@ def read_conll2010_task1(filename,n_docs='all'):
 				if pos not in ['NNP','NNPS'] and token!="I": # lowercase any other than proper nouns
 					token = token.lower()
 
-				for i in xrange(len(open_events)):
+				for i in range(len(open_events)):
 					event = open_events[i]
 					# continue building phrase
 					if pos[0]=='N' and pos==event.pos and n_tok==event.fin_phrase+1:
@@ -188,7 +188,7 @@ def index_docs(documents):
 	N = len(documents)
 	new_documents = {}
 	refs_vocab = []
-	for i in xrange(N):
+	for i in range(N):
 		doc = documents[i]
 		new_doc = []
 		for ref,freq in doc["lex"].items():
@@ -243,7 +243,7 @@ def get_referents(documents):
 	ref_by_token = {}
 	refs_by_doc = []
 	
-	for i in xrange(N):
+	for i in range(N):
 		# get annotated correference chains
 		chains = get_coref_chains(documents[i])
 
@@ -295,7 +295,7 @@ def log_pz(hdp,document_index,word,vocab):
 	# p(t_{ij}=t)
 	"""
 	table_log_likelihood = len(hdp._k_dt[document_index]) * np.log(hdp._alpha) - log_factorial(len(hdp._t_dv[document_index]), hdp._alpha);
-	for table_index in xrange(len(hdp._k_dt[document_index])):
+	for table_index in range(len(hdp._k_dt[document_index])):
 	    table_log_likelihood += scipy.special.gammaln(hdp._n_dt[document_index][table_index]);
 	table_log_likelihood += scipy.special.gammaln(hdp._alpha);
 	"""
@@ -353,7 +353,7 @@ def get_lr_format(refs_by_doc,hdp,refs_vocab):
 	X = []
 	Y = []
 	N = len(refs_by_doc)
-	for i in xrange(N):
+	for i in range(N):
 		doc = refs_by_doc[i]
 		c_d = sum(doc["lex"].values())
 		c_d += sum(doc["pro"].values())
