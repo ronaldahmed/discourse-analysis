@@ -147,7 +147,7 @@ def read_conll2010_task1_max_np(filename,n_docs='all'):
 				event.pos = '-'
 		"""
 		
-		# maximally spanning NPs considered, labeled as NNP is there is an NNP in the phrase
+		# maximally spanning NPs considered, labeled as NNP if there is an NNP in the phrase
 		if nesting_depth!=np.inf:	# only enters for maximally entities
 			event.phrase += " "+token
 			if pos in ['NNP','NNPS']:
