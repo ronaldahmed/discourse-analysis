@@ -1,7 +1,5 @@
 import os,sys
 import ipdb
-import matplotlib
-import matplotlib.pyplot as plt
 from utils import *
 from class_speaker_model import SpeakerModel
 from alternative_models import *

@@ -1,7 +1,5 @@
 import os,sys
 import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
 import glob as gb
 import re
 import ipdb
