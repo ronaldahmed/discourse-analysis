@@ -287,7 +287,7 @@ Assigns k from argmax p(xij|k,t). p(z_{ji}|G_j) = gamma * Gamma(gamma) * Gamma(m
 """
 def log_pz(hdp,document_index,word,vocab):
 	word_index = hdp._vocab.index(vocab.index(word))
-	max_topic_index = hdp.assign_topic_word(word_index)
+	max_topic_index = hdp.assign_topic_word(word_index).argmax()
 
 	if max_topic_index==-1:
 		return -np.inf

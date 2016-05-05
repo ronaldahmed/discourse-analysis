@@ -78,7 +78,7 @@ if __name__=="__main__":
 				token_ref_id.append(tr_idx)
 
 			ref_id = gs._vocab.index(referents_vocab.index(ref))		# get referent id in HDP vocab
-			k = gs.assign_topic_word(ref_id)
+			k = gs.assign_topic_word(ref_id).argmax()
 			k_ord_idx = np.nonzero(gs._ord_topics_pk[:,1]==k)[0][0]
 			if pos_w not in target_ref_k:
 				target_ref_k[pos_w] = []

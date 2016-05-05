@@ -6,12 +6,21 @@ import ipdb
 import pickle
 import os,sys
 sys.path.append('../')
+sys.path.append('../topicality\ and\ salience/')
 from hdp.ugs import *
+#from utils_topicality import 
+
 
 class SpeakerModel:
-	def __init__(self,_data,_vocab,_pronoun_type_ids,_lex_counts,_alpha=0.1,_decay=3, _salience='recency'):
+	def __init__(self,_data,
+					_vocab,
+					_pronoun_type_ids,
+					_lex_counts,
+					_topicmodel,
+					_alpha=0.1,_decay=3, _salience='recency'):
 		# corpus  Ndocs x entities
 		self.data = _data
+		self._D = len(_data)
 		# vocab: list of phrases, used to map phr_id in corpus
 		self.vocab = _vocab # np array
 		self.vocab_size = len(_vocab)
@@ -32,11 +41,9 @@ class SpeakerModel:
 		self._decay = _decay
 		# discourse salience measure, p(r)| vals: ['freq','rec']
 		self._salience = _salience
-		self._topicmodel = None
-		if _salience=='topicality':
-			with open('HDP.pickle', 'rb') as fd:
-				self._topicmodel = pickle.load(fd)
-
+		# topic model for topicality measure
+		self._topicmodel = _topicmodel
+		
 		# number of pronouns and proper names to predict
 		self._n_samples = sum([len(doc) for doc in self.data])
 		# V: number of ref. expressions that can refer to r, constant across referents
@@ -70,17 +77,11 @@ class SpeakerModel:
 		return np.log( len(self.vocab[word_id]) )
 		#return np.log( len(self.vocab[word_id]) )+1.0
 
-
-	def reformat_to_topicmodel(self,counts_state):
-		"""
-		reformat current referent counts state as input for Topic Model (tm_word: freq)
-		"""
-		return None
-
+	
 	'''
 	p(r) : discourse salience of referent r up until now
 	'''
-	def get_salience(self,referent_id,counts_state,last_mention_dist):
+	def get_salience(self,referent_id,counts_state,last_mention_dist,doc_id=-1):
 		p_r = 0
 		ref_prev_mentions = counts_state[referent_id] if len(counts_state)!=0 else 0
 		if ref_prev_mentions==0:			# new referent
@@ -92,19 +93,26 @@ class SpeakerModel:
 			elif self._salience=='recency':					# 'recency'
 				p_r = np.exp(-last_mention_dist/self._decay)	# recency measure
 			elif self._salience=='topicality':
-				# "Document" == current referent counts state
-
-				p_r = 0
+				# "Document" == current referent counts state --> not considered
+				word_id = self._topicmodel._vocab.index(referent_id)
+				logprob_xk = self._topicmodel.assign_topic_word(word_id) # log p(x|t,k)
+				# now calculate prob of all topics on document D
+				logprob_kd = self._topicmodel.topic_proportion_by_doc(doc_id) # theta_doc
+				# pick most probable topic assignment: p(x|k)*p(k|d)
+				logprob_x = logprob_xk + logprob_kd
+				k = logprob_x.argmax()
+				#topicality: prob of topic within document
+				p_r = np.exp(logprob_kd[k])
 		return p_r
 
 	'''
 	Sum over all potencial referents compatible with w. Sum_{r'} {p(w|r')*p(r')}
 	'''
-	def get_sum_potencial_referents(self,pos,referent_id,counts_state,mention_state,global_pos):
+	def get_sum_potencial_referents(self,pos,referent_id,counts_state,mention_state,global_pos,doc_id):
 		# proper noun only refers to itself
 		if pos[0]=='N':
 			last_mention_dist = global_pos - mention_state[referent_id]
-			return self.get_salience(referent_id,counts_state,last_mention_dist)
+			return self.get_salience(referent_id,counts_state,last_mention_dist,doc_id)
 		# pronoun spotted
 		else:
 			pro_type = self.pronoun_type_ids[referent_id]
@@ -119,12 +127,13 @@ class SpeakerModel:
 			sum_p_r = 0
 			for ref_id in potencial_refs_ids:
 				last_mention_dist = global_pos - mention_state[ref_id]
+				prev_mentions = counts_state[ref_id] if len(counts_state)!=0 else 0
 				if prev_mentions!=0:												# sum only active referents
-					sum_p_r +=  self.get_salience(ref_id,counts_state,last_mention_dist)
+					sum_p_r +=  self.get_salience(ref_id,counts_state,last_mention_dist,doc_id)
 
 			if sum_p_r==0:		# if PRP and there is no referent mentioned before
 				return 0.0		# return 
-			sum_p_r += self.get_salience(referent_id,[],0)		# add unseen entity prob
+			sum_p_r += self.get_salience(referent_id,[],0,doc_id)		# add unseen entity prob
 
 			return sum_p_r
 
@@ -133,7 +142,8 @@ class SpeakerModel:
 	"""
 	def predict(self):
 		self._model_loglikelihood = 0.0		# calculate model log likelihood as it predicts
-		for doc in self.data:
+		for doc_id in range(self._D):
+			doc = self.data[doc_id]
 			referent_counts = np.zeros(1000)
 			last_mention = np.zeros(1000)
 			for entity in doc:
@@ -152,12 +162,18 @@ class SpeakerModel:
 
 				# discourse salience for referent r
 				last_mention_distance = entity.global_pos - last_mention[ref_id]
-				p_r = self.get_salience(ref_id,referent_counts,last_mention_distance)
-
-				ipdb.set_trace()
+				p_r = self.get_salience(referent_id=ref_id,
+										counts_state=referent_counts,
+										last_mention_dist=last_mention_distance,
+										doc_id=doc_id)
 
 				# PROPER NAME CASE
-				sum_p_r_np = self.get_sum_potencial_referents('NNP', ref_id, referent_counts, last_mention, entity.global_pos)
+				sum_p_r_np = self.get_sum_potencial_referents('NNP', 
+										ref_id,
+										referent_counts,
+										last_mention,
+										entity.global_pos,
+										doc_id)
 				cw_np = self.speech_cost(ref_id)
 				log_speaker_np =  -np.log(sum_p_r_np) - np.log(cw_np)
 
@@ -167,7 +183,12 @@ class SpeakerModel:
 				#ipdb.set_trace()
 
 				# PRONOUN CASE
-				sum_p_r_pro = self.get_sum_potencial_referents('PRP', ref_id, referent_counts, last_mention, entity.global_pos)
+				sum_p_r_pro = self.get_sum_potencial_referents('PRP',
+										ref_id,
+										referent_counts,
+										last_mention,
+										entity.global_pos,
+										doc_id)
 				# speaker's cost: cross agreement and grammatical position
 				log_speaker_pro = -np.inf
 				for pro in pronounBydeprel[dep_rel]:
