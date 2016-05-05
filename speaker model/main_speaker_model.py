@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from utils import *
 from class_speaker_model import SpeakerModel
 from alternative_models import *
+sys.path.append('..')
+from hdp.ugs import UncollapsedGibbsSampling
 
 data_conll_dir = "../datasets/semeval_2010_t1_eng/data"
 data_noun_lexicon_dir = "../datasets/noun_gender_number/"
@@ -13,6 +15,9 @@ if __name__=="__main__":
 	n_docs='all'
 	update_pron_types = False		# True: load agreement annotation for referents
 	update_lexicon = False			# True: load vocabulary intersection between genre_number lexicon and corpus
+	retrain_hdp = True
+	gibbs_iterations = 1000
+	tune_parameters = False		#True: tune alpha and recency decay
 
 	GN_counts = []
 	GN_np_vocab = []
@@ -33,13 +38,31 @@ if __name__=="__main__":
 	else:
 		lexicon = uploadObject('names_in_gnlexicon')
 
-	
 	docs = filter_entities(docs,lexicon)
 	#deb = debug_dep_rel_pronoun(docs)
-	
+
 	# reformat data
 	formated_data,vocab = reformat_data(docs,lexicon)
 
+	############################
+	# HDP SETUP
+	if retrain_hdp:
+		# reformat for UGS format
+		hdp_format_data = reformat_hdp(formated_data)
+		print("Initializing HDP...")
+		gs = UncollapsedGibbsSampling(50);
+		gs._initialize(hdp_format_data,vocab,gamma=1.0,alpha=1.0,eta=0.01)
+
+		print("Sampling HDP (training)...")
+		gs.sample(iteration=gibbs_iterations,directory='output/');
+
+		# save HDP model
+		print("Saving HDP model...")
+		saveObject(gs,'hdp')
+	else:
+		gs = uploadObject('hdp')
+
+	############################################################################################
 	# Visualizing Corpus dimensionality
 	pros = 0
 	nps = 0
@@ -51,8 +74,7 @@ if __name__=="__main__":
 	print("Proper nouns: ",nps)		# curr: 1233
 	print("Ref_vocab: ",len(vocab))
 
-	#ipdb.set_trace()
-
+	############################################################################################
 	# Getting annotation of genre and number for vocabulary
 	pro_type_ids = []
 	if update_pron_types:
@@ -71,7 +93,7 @@ if __name__=="__main__":
 		pro_type_ids = uploadObject('pro_type_ids')
 		pro_type_counts = uploadObject('pro_type_counts')
 
-	
+	############################################################################################
 	# Check agreement information for first 20 phrases in vocabulary	
 	print("Agreement annotations (pronoun type)")
 	print("-"*150)
@@ -81,7 +103,8 @@ if __name__=="__main__":
 				print("%120s : %15s" % (vocab[i],pronoun_type_debug[pro_type_ids[i]] ) )
 		print("-"*150)
 	
-	tune_parameters = False		#True: tune alpha and recency decay
+	############################################################################################
+	
 	if not tune_parameters:
 		alpha = 1e-4
 		decay = 100
@@ -100,9 +123,11 @@ if __name__=="__main__":
 								_vocab=vocab,
 								_pronoun_type_ids=pro_type_ids,
 								_lex_counts=pro_type_counts,
+								_topicmodel=gs,
 								_alpha=alpha,
 								_decay=decay,
-								_salience=salience)
+								_salience=salience,
+								)
 			spk.predict()
 			spk.evaluate(verbose=False)
 			print("%12s | %15s || %2.2f | %11.2f | %14.2f | %9.2f |" % 
@@ -114,6 +139,7 @@ if __name__=="__main__":
 								_vocab=vocab,
 								_pronoun_type_ids=pro_type_ids,
 								_lex_counts=pro_type_counts,
+								_topicmodel=gs,
 								_alpha=alpha,
 								_decay=decay,
 								_salience=salience)
@@ -129,6 +155,7 @@ if __name__=="__main__":
 							_vocab=vocab,
 							_pronoun_type_ids=pro_type_ids,
 							_lex_counts=pro_type_counts,
+							_topicmodel=gs,
 							_alpha=alpha,
 							_decay=decay,
 							_salience=salience)
@@ -144,6 +171,7 @@ if __name__=="__main__":
 								_vocab=vocab,
 								_pronoun_type_ids=pro_type_ids,
 								_lex_counts=pro_type_counts,
+								_topicmodel=gs,
 								_alpha=alpha,
 								_decay=decay,
 								_salience=salience)
@@ -169,6 +197,7 @@ if __name__=="__main__":
 										_vocab=vocab,
 										_pronoun_type_ids=pro_type_ids,
 										_lex_counts=pro_type_counts,
+										_topicmodel=gs,
 										_alpha=alpha,
 										_decay=decay,
 										_salience=salience)
@@ -188,6 +217,7 @@ if __name__=="__main__":
 								_vocab=vocab,
 								_pronoun_type_ids=pro_type_ids,
 								_lex_counts=pro_type_counts,
+								_topicmodel=gs,
 								_alpha=a_opt,
 								_decay=d_opt,
 								_salience=salience)

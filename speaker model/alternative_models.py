@@ -5,7 +5,7 @@ class SM_NoDiscourse(SpeakerModel):
 	'''
 	p(r) : Uniform discourse salience
 	'''
-	def get_salience(self,referent_id,ref_prev_mentions,last_mention_dist):
+	def get_salience(self,referent_id,counts_state,last_mention_dist,doc_id=-1):
 		return 1.0 / self._n_referents
 
 class SM_NoCost(SpeakerModel):

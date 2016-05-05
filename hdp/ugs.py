@@ -100,7 +100,11 @@ class UncollapsedGibbsSampling(object):
             
             # self._k_dt records down which topic a table was assigned to
             self._k_dt[d] = numpy.zeros(1, dtype=numpy.int);
-            assert(len(self._k_dt[d]) == len(numpy.unique(self._t_dv[d])));
+
+            try:
+                assert(len(self._k_dt[d]) == len(numpy.unique(self._t_dv[d])));
+            except:
+                ipdb.set_trace()
             
             # word_count_table records down the number of words sit on every table
             self._n_dt[d] = numpy.zeros(1, dtype=numpy.int) + len(self._corpus[d]);
@@ -419,7 +423,7 @@ class UncollapsedGibbsSampling(object):
         return log_likelihood
        
     """
-    returns array with log_likelihood of each k
+    returns array with log_likelihood of each k for all corpus: p(k)
     """
     def by_topic_log_likelihood(self):
         log_likelihood = numpy.log(self._gamma) - log_factorial(numpy.sum(self._m_k), self._gamma)
@@ -445,8 +449,28 @@ class UncollapsedGibbsSampling(object):
 
         if log_p_x.max()==-numpy.inf:
             return -1
-        return log_p_x.argmax()
-        
+        return log_p_x
+    
+    """
+    Topic proportion of a document p(k|t,D) = gamma * (m_{jk}-1)! / \prod_{s=1}^m_{j.}(s+gamma-1)
+    """
+    def topic_proportion_by_doc(self,doc_index):
+        log_p_kd = numpy.zeros(self._K)
+        # pre calc denominador: \prod_{s=1}^m_{j.}(s+gamma-1)
+        _norm = 0.0
+        num_tables = len(self._k_dt[doc_index])
+        for s in range(1,num_tables+1):
+            _norm += numpy.log(s+self._gamma-1)
+        log_p_kd -= _norm
+        # iterate over topics ids
+        for j in range(self._K):
+            # m_jk = sum( k_dt[j]==k )
+            if sum(self._k_dt[doc_index]==j)==0:
+                log_p_kd[j] = -numpy.inf
+            else:
+                log_p_kd[j] += numpy.log(self._gamma) + scipy.special.gammaln(sum(self._k_dt[doc_index]==j))
+        return log_p_kd
+
 
     """
     """

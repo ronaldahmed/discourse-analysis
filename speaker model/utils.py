@@ -231,7 +231,8 @@ def filter_entities(documents,lexicon):
 				valid_chains.add(entity.entity_id)
 		# filter documents
 		new_doc = np.array( [entity for entity in doc if entity.entity_id in valid_chains ] )
-		filtered_docs.append(new_doc)
+		if len(new_doc)!=0:
+			filtered_docs.append(new_doc)
 
 	filtered_docs = np.array(filtered_docs)
 	return filtered_docs	
@@ -391,6 +392,17 @@ def reformat_data(documents,lexicon):
 	ref_exp_vocab = np.array(ref_exp_vocab)
 
 	return new_documents,ref_exp_vocab
+
+"""
+Change SpeakerModel format to HDP_UGS format
+return: {doc_id: [word_id....]}
+"""
+def reformat_hdp(documents):
+	hdp_format = {}
+	for i,doc in enumerate(documents):
+		new_doc = [entity.referent_id for entity in doc]
+		hdp_format[i] = new_doc
+	return hdp_format
 
 
 def debug_dep_rel_pronoun(data):
